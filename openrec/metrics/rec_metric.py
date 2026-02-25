@@ -66,9 +66,9 @@ class RecMetric(object):
         if self.with_ratio and not training:
             return self.eval_all_metric(pred_label, batch)
         else:
-            return self.eval_metric(pred_label)
+            return self.eval_metric(pred_label, training=training)
 
-    def eval_metric(self, pred_label, *args, **kwargs):
+    def eval_metric(self, pred_label, training=False, *args, **kwargs):
         preds, labels = pred_label
         correct_num = 0
         all_num = 0
@@ -90,6 +90,9 @@ class RecMetric(object):
             if pred == target:
                 correct_num += 1
             all_num += 1
+            # simple debug: print a few examples during eval to inspect predictions
+            if (not training) and all_num <= 5:
+                print(f"[RecMetric] pred: '{pred}'  |  target: '{target}'")
         self.correct_num += correct_num
         self.all_num += all_num
         self.norm_edit_dis += norm_edit_dis

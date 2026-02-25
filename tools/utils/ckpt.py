@@ -1,4 +1,5 @@
 import os
+import tempfile
 
 import torch
 
@@ -25,13 +26,15 @@ def save_ckpt(
     """
     if logger is None:
         logger = get_logger()
+    out_dir = cfg["Global"]["output_dir"]
+    os.makedirs(out_dir, exist_ok=True)
     if prefix is None:
         if is_best:
-            save_path = os.path.join(cfg["Global"]["output_dir"], "best.pth")
+            save_path = os.path.join(out_dir, "best.pth")
         else:
-            save_path = os.path.join(cfg["Global"]["output_dir"], "latest.pth")
+            save_path = os.path.join(out_dir, "latest.pth")
     else:
-        save_path = os.path.join(cfg["Global"]["output_dir"], prefix + ".pth")
+        save_path = os.path.join(out_dir, prefix + ".pth")
     state_dict = model.module.state_dict() if cfg["Global"]["distributed"] else model.state_dict()
     state = {
         "epoch": epoch,
@@ -42,7 +45,20 @@ def save_ckpt(
         "config": cfg,
         "metrics": metrics,
     }
-    torch.save(state, save_path)
+    # Write to temp file then rename to avoid corrupting checkpoint on IO error / disk full
+    fd, tmp_path = tempfile.mkstemp(suffix=".pth", dir=out_dir)
+    try:
+        os.close(fd)
+        torch.save(state, tmp_path)
+        os.replace(tmp_path, save_path)
+    except Exception as e:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+        logger.warning(f"save ckpt failed: {e}")
+        raise
     logger.info(f"save ckpt to {save_path}")
 
 

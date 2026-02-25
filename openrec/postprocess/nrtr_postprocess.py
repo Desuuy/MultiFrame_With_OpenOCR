@@ -20,9 +20,9 @@ class NRTRLabelDecode(BaseRecLabelDecode):
             preds_id = preds[0]
             preds_prob = preds[1]
             if isinstance(preds_id, torch.Tensor):
-                preds_id = preds_id.detach().cpu().numpy()
+                preds_id = preds_id.detach().to(torch.float32).cpu().numpy()
             if isinstance(preds_prob, torch.Tensor):
-                preds_prob = preds_prob.detach().cpu().numpy()
+                preds_prob = preds_prob.detach().to(torch.float32).cpu().numpy()
             if preds_id[0][0] == 2:
                 preds_idx = preds_id[:, 1:]
                 preds_prob = preds_prob[:, 1:]
@@ -36,7 +36,7 @@ class NRTRLabelDecode(BaseRecLabelDecode):
             label = self.decode(batch[1][:, 1:])
         else:
             if isinstance(preds, torch.Tensor):
-                preds = preds.detach().cpu().numpy()
+                preds = preds.detach().to(torch.float32).cpu().numpy()
             preds_idx = preds.argmax(axis=2)
             preds_prob = preds.max(axis=2)
             text = self.decode(preds_idx,
