@@ -413,37 +413,60 @@ def main(cfg):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    t_sum = 0
+    t_sum = 0.0
     sample_num = 0
     max_len = cfg['Global']['max_text_length']
-    text_len_time = [0 for _ in range(max_len)]
+    text_len_time = [0.0 for _ in range(max_len)]
     text_len_num = [0 for _ in range(max_len)]
 
-    sample_num = 0
+    import re
+
     with open(save_res_path, 'wb') as fout:
         for file in get_image_file_list(cfg['Global']['infer_img']):
             results = model(img_path=file, batch_num=1)
             if not results:
                 continue
+
             preds_result = results[0]
             rec_text = preds_result['text']
-            # Một số postprocess trả về text dạng tuple/list ký tự -> nối lại thành chuỗi
+
+            # Chuẩn hoá rec_text thành chuỗi
             if isinstance(rec_text, (list, tuple)):
-                rec_text = ''.join([str(x) for x in rec_text])
+                rec_text = ''.join(str(x) for x in rec_text)
             else:
                 rec_text = str(rec_text)
 
-            score = preds_result.get('score', 0.0)
-            t_cost = preds_result['elapse']
-            info = rec_text + '\t' + str(score)
-            text_len_num[min(max_len - 1, len(rec_text))] += 1
-            text_len_time[min(max_len - 1, len(rec_text))] += t_cost
+            # Tách plate + score từ rec_text: dạng "<plate>0.xxxxx"
+            plate = rec_text
+            score = 0.0
+            m = re.match(r'^(.*?)(0\.\d+)$', rec_text)
+            if m:
+                plate = m.group(1)
+                try:
+                    score = float(m.group(2))
+                except Exception:
+                    score = 0.0
+
+            rec_text = plate  # từ đây trở đi, rec_text chỉ còn biển số
+
+            t_cost = float(preds_result.get('elapse', 0.0))
+
+            # Cập nhật thống kê độ dài
+            text_len = len(rec_text)
+            idx = min(max_len - 1, text_len)
+            text_len_num[idx] += 1
+            text_len_time[idx] += t_cost
+
+            # Ghi log + file ở dạng: image_path<TAB>text<TAB>confidence
             logger.info(
-                f'{sample_num} {file}\t result: {info}, time cost: {t_cost}')
-            otstr = file + '\t' + info + '\n'
+                f'{sample_num} {file}\t result: {rec_text}\t{score:.4f}, time cost: {t_cost:.4f}s'
+            )
+            otstr = f"{file}\t{rec_text}\t{score:.4f}\n"
+
             t_sum += t_cost
-            fout.write(otstr.encode())
+            fout.write(otstr.encode('utf-8'))
             sample_num += 1
+
         logger.info(f"Results saved to {save_res_path}.")
 
     print(text_len_num)
@@ -452,10 +475,13 @@ def main(cfg):
         if l_num != 0:
             w_avg_t_cost.append(l_t_cost / l_num)
     print(w_avg_t_cost)
-    w_avg_t_cost = sum(w_avg_t_cost) / len(w_avg_t_cost)
+    if w_avg_t_cost:
+        w_avg_t_cost = sum(w_avg_t_cost) / len(w_avg_t_cost)
+    else:
+        w_avg_t_cost = 0.0
 
     logger.info(
-        f'Sample num: {sample_num}, Weighted Avg time cost: {t_sum/sample_num}, Avg time cost: {w_avg_t_cost}'
+        f'Sample num: {sample_num}, Weighted Avg time cost: {t_sum/max(sample_num,1)}, Avg time cost: {w_avg_t_cost}'
     )
     logger.info('success!')
 
