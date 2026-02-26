@@ -9,14 +9,25 @@ sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '..')))
 from tools.create_lmdb_dataset import get_datalist
 # createDataset gốc không dùng nữa, ta tự viết bản nhỏ hơn với map_size nhỏ.
 
-# === CẤU HÌNH RIÊNG CHO BIỂN SỐ CỦA BẠN ===
-data_dir = r"C:\Users\anhhu\lp_for_openocr\images"        # thư mục ảnh
-label_file = r"C:\Users\anhhu\lp_for_openocr\labels.txt"  # file labels.txt
-save_path = r"C:\Users\anhhu\lp_for_openocr\lmdb"         # nơi lưu LMDB
+# === CẤU HÌNH DATASET (CÓ THỂ GỒM CẢ ẢNH ĐẸP + ẢNH XẤU) ===
+# Mỗi phần tử là một dict với:
+#   - data_dir: thư mục gốc chứa ảnh
+#   - label_file: file labels.txt tương ứng (đường dẫn tuyệt đối hoặc tương đối)
+DATASETS = [
+    {
+        "data_dir": r"C:\Users\anhhu\lp_for_openocr\images",        
+        "label_file": r"C:\Users\anhhu\lp_for_openocr\labels.txt",
+    },
+    # Thêm block thứ 2 cho ảnh chất lượng thấp (LR, blur, noise...) nếu có:
+    # {
+    #     "data_dir": r"C:\Users\anhhu\lp_for_openocr\lr_images",
+    #     "label_file": r"C:\Users\anhhu\lp_for_openocr\labels_lr.txt",
+    # },
+]
+
+save_path = r"C:\Users\anhhu\lp_for_openocr\lmdb"  # thư mục LMDB gộp cả HQ + LQ
 max_len = 25  # độ dài text tối đa
 
-print("data_dir  :", data_dir)
-print("label_file:", label_file)
 print("save_path :", save_path)
 
 import lmdb
@@ -73,8 +84,23 @@ def createDataset_small(data_list, outputPath, checkValid=True, map_size=8 * 102
 
 
 # === PHẦN MAIN (ở ngoài hàm) ===
-train_data_list = get_datalist(data_dir, label_file, max_len)
-print("num samples in label list:", len(train_data_list))
+all_data = []
+for cfg in DATASETS:
+    data_dir = cfg["data_dir"]
+    label_file = cfg["label_file"]
+    print("data_dir  :", data_dir)
+    print("label_file:", label_file)
+    if not os.path.isfile(label_file):
+        print("  -> BỎ QUA: file không tồn tại. Tạo file này hoặc sửa đường dẫn trong DATASETS.")
+        continue
+    if not os.path.isdir(data_dir):
+        print("  -> BỎ QUA: thư mục ảnh không tồn tại.")
+        continue
+    data_list = get_datalist(data_dir, label_file, max_len)
+    print("  -> num samples from this dataset:", len(data_list))
+    all_data.extend(data_list)
 
-createDataset_small(train_data_list, save_path)
+print("TOTAL samples from all datasets:", len(all_data))
+
+createDataset_small(all_data, save_path)
 print("Done.")
