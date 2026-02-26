@@ -367,21 +367,36 @@ class OpenRecognizer:
                 preds = preds[0]  # bs, len, num_classes
                 torch_tensor = False
             t_cost = time.time() - t_start
-            post_results = self.post_process_class(preds,
-                                                   torch_tensor=torch_tensor)
+            post_results = self.post_process_class(
+                preds, torch_tensor=torch_tensor
+            )
+            # Bảo vệ cả kích thước post_results và batch_file_names để tránh IndexError
             for i, post_result in enumerate(post_results):
-                if img_path is not None:
+                # post_result thường là [text, score] nhưng trong một số trường hợp
+                # có thể trống hoặc chỉ có text. Xử lý an toàn để tránh IndexError.
+                if not post_result:
+                    continue
+
+                text = post_result[0]
+                score = 0.0
+                if len(post_result) > 1:
+                    try:
+                        score = float(post_result[1])
+                    except Exception:
+                        score = 0.0
+
+                if img_path is not None and i < len(batch_file_names):
                     info = {
                         'file': batch_file_names[i],
-                        'text': post_result[0],
-                        'score': post_result[1],
-                        'elapse': t_cost
+                        'text': text,
+                        'score': score,
+                        'elapse': t_cost,
                     }
                 else:
                     info = {
-                        'text': post_result[0],
-                        'score': post_result[1],
-                        'elapse': t_cost
+                        'text': text,
+                        'score': score,
+                        'elapse': t_cost,
                     }
                 results.append(info)
 
@@ -391,9 +406,12 @@ class OpenRecognizer:
 def main(cfg):
     model = OpenRecognizer(cfg)
 
-    save_res_path = './rec_results/'
-    if not os.path.exists(save_res_path):
-        os.makedirs(save_res_path)
+    # Tôn trọng Global.save_res_path trong config nếu có, ngược lại dùng mặc định
+    default_out = './rec_results/rec_results.txt'
+    save_res_path = cfg['Global'].get('save_res_path', default_out)
+    save_dir = os.path.dirname(save_res_path) or '.'
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
     t_sum = 0
     sample_num = 0
@@ -402,11 +420,20 @@ def main(cfg):
     text_len_num = [0 for _ in range(max_len)]
 
     sample_num = 0
-    with open(save_res_path + '/rec_results.txt', 'wb') as fout:
+    with open(save_res_path, 'wb') as fout:
         for file in get_image_file_list(cfg['Global']['infer_img']):
-            preds_result = model(img_path=file, batch_num=1)[0]
+            results = model(img_path=file, batch_num=1)
+            if not results:
+                continue
+            preds_result = results[0]
             rec_text = preds_result['text']
-            score = preds_result['score']
+            # Một số postprocess trả về text dạng tuple/list ký tự -> nối lại thành chuỗi
+            if isinstance(rec_text, (list, tuple)):
+                rec_text = ''.join([str(x) for x in rec_text])
+            else:
+                rec_text = str(rec_text)
+
+            score = preds_result.get('score', 0.0)
             t_cost = preds_result['elapse']
             info = rec_text + '\t' + str(score)
             text_len_num[min(max_len - 1, len(rec_text))] += 1
@@ -417,9 +444,7 @@ def main(cfg):
             t_sum += t_cost
             fout.write(otstr.encode())
             sample_num += 1
-        logger.info(
-            f"Results saved to {os.path.join(save_res_path, 'rec_results.txt')}.)"
-        )
+        logger.info(f"Results saved to {save_res_path}.")
 
     print(text_len_num)
     w_avg_t_cost = []

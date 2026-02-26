@@ -32,17 +32,43 @@ def _check_image_file(path):
 
 
 def get_image_file_list(img_file):
+    """
+    Get list of image files for inference.
+
+    Hỗ trợ:
+    - img_file là 1 ảnh đơn lẻ (jpg/png/...)
+    - img_file là 1 thư mục (quét 1 level các file ảnh)
+    - img_file là 1 file .txt: mỗi dòng là 1 đường dẫn ảnh
+    """
     imgs_lists = []
     if img_file is None or not os.path.exists(img_file):
         raise Exception("not found any img file in {}".format(img_file))
 
+    # Case 1: Single image file
     if os.path.isfile(img_file) and _check_image_file(img_file):
         imgs_lists.append(img_file)
+
+    # Case 2: Text file containing a list of image paths
+    elif os.path.isfile(img_file) and img_file.lower().endswith(".txt"):
+        base_dir = os.path.dirname(os.path.abspath(img_file))
+        with open(img_file, "r", encoding="utf-8") as f:
+            for line in f:
+                path = line.strip()
+                if not path:
+                    continue
+                # Nếu path là relative thì join với thư mục chứa file .txt
+                if not os.path.isabs(path):
+                    path = os.path.join(base_dir, path)
+                if os.path.isfile(path) and _check_image_file(path):
+                    imgs_lists.append(path)
+
+    # Case 3: Directory – non-recursive scan
     elif os.path.isdir(img_file):
         for single_file in os.listdir(img_file):
             file_path = os.path.join(img_file, single_file)
             if os.path.isfile(file_path) and _check_image_file(file_path):
                 imgs_lists.append(file_path)
+
     if len(imgs_lists) == 0:
         raise Exception("not found any img file in {}".format(img_file))
     imgs_lists = sorted(imgs_lists)

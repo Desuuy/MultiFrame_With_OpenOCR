@@ -17,11 +17,11 @@ Global:
   pretrained_model: ./output/rec/ablation_msr/svtrv2_smtr_gtc_rctc/best.pth
   checkpoints: null
   use_tensorboard: false
-  infer_img: null
+  infer_img: C:/Users/anhhu/MultiFrame-LPR/data/openocr_infer_list.txt
   character_dict_path: ./tools/utils/EN_lp_symbol_dict.txt
   max_text_length: 25
   use_space_char: false
-  save_res_path: ./output/rec/u14m_filter/predicts_svtrv2_smtr_gtc_rctc.txt
+  save_res_path: C:/Users/anhhu/MultiFrame-LPR/data/openocr_results.txt
   use_amp: true
   distributed: true
 Optimizer:
