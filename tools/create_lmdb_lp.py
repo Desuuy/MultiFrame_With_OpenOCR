@@ -25,7 +25,7 @@ DATASETS = [
     # },
 ]
 
-save_path = r"C:\Users\anhhu\lp_for_openocr\lmdb"  # thư mục LMDB gộp cả HQ + LQ
+save_path = r"D:\new_lp_for_openocr\lmdb"  # thư mục LMDB gộp cả HQ + LQ
 max_len = 25  # độ dài text tối đa
 
 print("save_path :", save_path)
