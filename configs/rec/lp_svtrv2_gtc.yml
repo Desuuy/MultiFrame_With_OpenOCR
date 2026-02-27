@@ -16,10 +16,12 @@ Global:
   cal_metric_during_train: true
   checkpoints: null
   use_tensorboard: false
+
   pretrained_model: ./output/rec/ablation_msr/svtrv2_smtr_gtc_rctc/best.pth
   infer_img: C:/Users/anhhu/MultiFrame-LPR/data/openocr_infer_list.txt
   save_res_path: C:/Users/anhhu/MultiFrame-LPR/data/openocr_results.txt
   character_dict_path: ./tools/utils/EN_lp_symbol_dict.txt
+  
   max_text_length: 25
   use_space_char: false
   use_amp: true
@@ -123,7 +125,7 @@ Train:
     ds_width: true
     padding: false
     data_dir_list:
-    - /workspace/lp_for_openocr/lmdb
+    - D:/lmdb_data_for_openocr/lmdb_train
     transforms:
     - DecodeImagePIL:
         img_mode: RGB
@@ -171,7 +173,7 @@ Eval:
     ds_width: true
     padding: false
     data_dir_list:
-    - /workspace/lp_for_openocr/lmdb
+    - D:/lmdb_data_for_openocr/lmdb_val
     transforms:
     - DecodeImagePIL:
         img_mode: RGB

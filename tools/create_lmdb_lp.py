@@ -9,26 +9,41 @@ sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '..')))
 from tools.create_lmdb_dataset import get_datalist
 # createDataset gốc không dùng nữa, ta tự viết bản nhỏ hơn với map_size nhỏ.
 
-# === CẤU HÌNH DATASET (CÓ THỂ GỒM CẢ ẢNH ĐẸP + ẢNH XẤU) ===
+# ============================================================
+# CẤU HÌNH DATASET CHO TRAIN VÀ VALID (RIÊNG BIỆT)
+# ============================================================
 # Mỗi phần tử là một dict với:
 #   - data_dir: thư mục gốc chứa ảnh
 #   - label_file: file labels.txt tương ứng (đường dẫn tuyệt đối hoặc tương đối)
-DATASETS = [
+
+TRAIN_DATASETS = [
     {
-        "data_dir": r"C:\Users\anhhu\lp_for_openocr\images",        
-        "label_file": r"C:\Users\anhhu\lp_for_openocr\labels.txt",
+        "data_dir": r"C:\Users\anhhu\lmdb_for_openocr\train_images",
+        "label_file": r"C:\Users\anhhu\lmdb_for_openocr\train_labels.txt",
     },
-    # Thêm block thứ 2 cho ảnh chất lượng thấp (LR, blur, noise...) nếu có:
+    # Có thể thêm nhiều source train khác ở đây nếu muốn gộp:
     # {
-    #     "data_dir": r"C:\Users\anhhu\lp_for_openocr\lr_images",
-    #     "label_file": r"C:\Users\anhhu\lp_for_openocr\labels_lr.txt",
+    #     "data_dir": r"C:\Users\anhhu\lmdb_for_openocr\train_lr_images",
+    #     "label_file": r"C:\Users\anhhu\lmdb_for_openocr\train_lr_labels.txt",
     # },
 ]
 
-save_path = r"D:\new_lp_for_openocr\lmdb"  # thư mục LMDB gộp cả HQ + LQ
+VAL_DATASETS = [
+    {
+        "data_dir": r"C:\Users\anhhu\lmdb_for_openocr\val_images",
+        "label_file": r"C:\Users\anhhu\lmdb_for_openocr\val_labels.txt",
+    },
+    # Có thể thêm nhiều source valid khác ở đây nếu cần.
+]
+
+# Thư mục lưu LMDB cho train / valid (2 thư mục khác nhau)
+TRAIN_SAVE_PATH = r"D:\lmdb_data_for_openocr\lmdb_train"
+VAL_SAVE_PATH = r"D:\lmdb_data_for_openocr\lmdb_val"
+
 max_len = 25  # độ dài text tối đa
 
-print("save_path :", save_path)
+print("TRAIN_SAVE_PATH :", TRAIN_SAVE_PATH)
+print("VAL_SAVE_PATH   :", VAL_SAVE_PATH)
 
 import lmdb
 import cv2
@@ -44,8 +59,8 @@ def createDataset_small(data_list, outputPath, checkValid=True, map_size=8 * 102
     env = lmdb.open(outputPath, map_size=map_size)
     cache = {}
     cnt = 1
-    for imagePath, label in tqdm(data_list,
-                                 desc=f'make dataset, save to {outputPath}'):
+    for imagePath, label in tqdm(
+            data_list, desc=f'make dataset, save to {outputPath}'):
         with open(imagePath, 'rb') as f:
             imageBin = f.read()
             buf = io.BytesIO(imageBin)
@@ -83,24 +98,37 @@ def createDataset_small(data_list, outputPath, checkValid=True, map_size=8 * 102
     print('Created dataset with %d samples' % nSamples)
 
 
+def build_and_save_lmdb(tag, dataset_cfgs, save_path):
+    """Gộp nhiều source (data_dir, label_file) rồi tạo 1 LMDB."""
+    print(f"\n===== BUILD {tag.upper()} LMDB =====")
+    print("save_path:", save_path)
+
+    all_data = []
+    for cfg in dataset_cfgs:
+        data_dir = cfg["data_dir"]
+        label_file = cfg["label_file"]
+        print("data_dir  :", data_dir)
+        print("label_file:", label_file)
+        if not os.path.isfile(label_file):
+            print("  -> BỎ QUA: file không tồn tại. Tạo file này hoặc sửa đường dẫn.")
+            continue
+        if not os.path.isdir(data_dir):
+            print("  -> BỎ QUA: thư mục ảnh không tồn tại.")
+            continue
+        data_list = get_datalist(data_dir, label_file, max_len)
+        print("  -> num samples from this dataset:", len(data_list))
+        all_data.extend(data_list)
+
+    print(f"TOTAL samples for {tag}:", len(all_data))
+    if not all_data:
+        print(f"Lỗi: {tag} không có mẫu nào, bỏ qua tạo LMDB cho phần này.")
+        return
+
+    createDataset_small(all_data, save_path)
+    print(f"{tag} LMDB Done.")
+
+
 # === PHẦN MAIN (ở ngoài hàm) ===
-all_data = []
-for cfg in DATASETS:
-    data_dir = cfg["data_dir"]
-    label_file = cfg["label_file"]
-    print("data_dir  :", data_dir)
-    print("label_file:", label_file)
-    if not os.path.isfile(label_file):
-        print("  -> BỎ QUA: file không tồn tại. Tạo file này hoặc sửa đường dẫn trong DATASETS.")
-        continue
-    if not os.path.isdir(data_dir):
-        print("  -> BỎ QUA: thư mục ảnh không tồn tại.")
-        continue
-    data_list = get_datalist(data_dir, label_file, max_len)
-    print("  -> num samples from this dataset:", len(data_list))
-    all_data.extend(data_list)
-
-print("TOTAL samples from all datasets:", len(all_data))
-
-createDataset_small(all_data, save_path)
-print("Done.")
+if __name__ == "__main__":
+    build_and_save_lmdb("train", TRAIN_DATASETS, TRAIN_SAVE_PATH)
+    build_and_save_lmdb("valid", VAL_DATASETS, VAL_SAVE_PATH)
